@@ -7,7 +7,7 @@ import java.util.*;
  * 正确的分隔多段SQL
  */
 public class SQLSplitter {
-    public static String[] split(String sqls) {
+    public static List<String> split(String sqls) {
         LinkedList<String> sqlList = new LinkedList<>();
         Stack<Integer> posStack = new Stack<>();
         Stack<Character> charStack = new Stack<>();
@@ -19,8 +19,8 @@ public class SQLSplitter {
                 case '\'':
                     dis = charStack.search('\'');
                     if (dis > -1) {
-                        batchPop(charStack, dis);
-                        batchPop(posStack, dis);
+                        popN(charStack, dis);
+                        popN(posStack, dis);
                     } else {
                         charStack.push(chars[i]);
                         posStack.push(i);
@@ -30,8 +30,8 @@ public class SQLSplitter {
                 case '"':
                     dis = charStack.search('"');
                     if (dis > -1) {
-                        batchPop(charStack, dis);
-                        batchPop(posStack, dis);
+                        popN(charStack, dis);
+                        popN(posStack, dis);
                     } else {
                         charStack.push(chars[i]);
                         posStack.push(i);
@@ -45,12 +45,23 @@ public class SQLSplitter {
                         i++;
                     }
                     break;
-                //遇到注释（--）结束符\n
+                //遇到注释（--）结束符\n,\r\n,\r
+                case '\r':
+                    //Classic macOS
+                    if (i + 1 < chars.length && chars[i + 1] != '\n') {
+                        dis = charStack.search('-');
+                        if (dis > -1) {
+                            popN(charStack, dis);
+                            popN(posStack, dis);
+                        }
+                    }
+                    break;
+                    //Unix或Windows
                 case '\n':
                     dis = charStack.search('-');
                     if (dis > -1) {
-                        batchPop(charStack, dis);
-                        batchPop(posStack, dis);
+                        popN(charStack, dis);
+                        popN(posStack, dis);
                     }
                     break;
                 //遇到转义字符\跳过转义字符后面的一个字符
@@ -65,6 +76,12 @@ public class SQLSplitter {
                 default:
             }
         }
+        //sql结尾注释
+        int dis = charStack.search('-');
+        if (dis > -1) {
+            popN(charStack, dis);
+            popN(posStack, dis);
+        }
         //如果最后一个sql不带分号;
         if (posStack.empty() || posStack.peek() != sqls.length() - 1) {
             posStack.push(sqls.length());
@@ -75,13 +92,12 @@ public class SQLSplitter {
         for (int i = 0; i < posStack.size(); i++) {
             endPos = posStack.get(i);
             sqlList.add(sqls.substring(startPos, endPos));
-            startPos = endPos + 1;
+            startPos = endPos;
         }
-        String[] result = new String[sqlList.size()];
-        return sqlList.toArray(result);
+        return sqlList;
     }
 
-    private static void batchPop(Stack stack, int n) {
+    private static void popN(Stack stack, int n) {
         for (int i = n; i > 0; i--) {
             stack.pop();
         }
